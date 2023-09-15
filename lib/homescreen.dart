@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'dart:async';
+
+
 // ignore: unused_import
 import 'weather_model.dart';
 
@@ -20,7 +23,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void initState() {
+    
     super.initState();
+    
     // Call your API here
     fetchDataFromApi();
   }
@@ -76,33 +81,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen({Key? key}) : super(key: key);
-  
-  dynamic get isDay => isDay;
-  
-  dynamic get temperature => temperature;
-  
-  dynamic get windspeed => windspeed;
 
   @override
- 
+  // ignore: library_private_types_in_public_api
   _WeatherScreenState createState() => _WeatherScreenState();
 }
 
 class _WeatherScreenState extends State<WeatherScreen> {
   TextEditingController latitudeController = TextEditingController();
   TextEditingController longitudeController = TextEditingController();
-  List<WeatherScreen> weatherData = [];
-
-  @override
-  void dispose() {
-    latitudeController.dispose();
-    longitudeController.dispose();
-    super.dispose();
-  }
+  List<Map<String, dynamic>> weatherData = [];
 
   @override
   void initState() {
     super.initState();
+    setState(() {
+  weatherData = weatherData;
+});
   }
 
   @override
@@ -142,11 +137,11 @@ class _WeatherScreenState extends State<WeatherScreen> {
             keyboardType: TextInputType.number,
             style: const TextStyle(color: Colors.white),
           ),
-          ElevatedButton(
-            onPressed: () {
-              const double latitude = 52.52;
-              const double longitude = 13.41;
-              fetchWeatherData(latitude, longitude);
+ ElevatedButton(
+            onPressed: () async {
+              final double latitude = double.parse(latitudeController.text);
+              final double longitude = double.parse(longitudeController.text);
+              await fetchWeatherData(latitude, longitude);
             },
             child: const Text('Get Weather'),
           ),
@@ -155,12 +150,15 @@ class _WeatherScreenState extends State<WeatherScreen> {
             child: ListView.builder(
               itemCount: weatherData.length,
               itemBuilder: (context, index) {
-                final weather = weatherData[
-                    index]; 
+                final weather = weatherData[index];
+                final isDay = weather['isDay'];
+                final temperature = weather['temperature'];
+                final windspeed = weather['windspeed'];
+
                 return ListTile(
-                  title: Text('isDay: ${weather.isDay}'),
-                  subtitle: Text('Temperature: ${weather.temperature}°C'),
-                  trailing: Text('Windspeed: ${weather.windspeed}'),
+                  title: Text('isDay: $isDay'),
+                  subtitle: Text('Temperature: $temperature°C'),
+                  trailing: Text('Windspeed: $windspeed'),
                 );
               },
             ),
@@ -170,64 +168,42 @@ class _WeatherScreenState extends State<WeatherScreen> {
     );
   }
 
-  Future<List<Weather>> fetchWeatherData(
-      double latitude, double longitude) async {
+  Future<void> fetchWeatherData(double latitude, double longitude) async {
     try {
       final response = await http.get(Uri.parse(
-          'https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&current_weather=true&timezone=auto'));
+        'https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&current_weather=true&timezone=auto',
+      ));
 
       if (response.statusCode == 200) {
         final decodedData = json.decode(response.body);
-
-       
         final dailyForecasts = decodedData['daily']['time_series'];
 
-       
-        final List<Weather> fetchedWeatherData = [];
+        final List<Map<String, dynamic>> fetchedWeatherData = [];
 
-       
         for (final forecast in dailyForecasts) {
-          final date = forecast['isday'];
-          final maxTemp = forecast['temperature_2m_max'];
-          final minTemp = forecast['temperature_2m_min'];
-          final description = forecast['windspeed'];
+          final isDay = forecast['isDay'].toString();
+          final maxTemp = forecast['temperature2mMax'];
+          final minTemp = forecast['temperature2mMin'];
+          final windspeed = forecast['windspeed'];
 
-         
-          final weather = Weather(
-            isDay: date,
-            temperature: (maxTemp + minTemp) / 2.0,
-            windspeed: description,
-          );
+          final weatherData = {
+            'isDay': isDay,
+            'temperature': (maxTemp + minTemp) / 2.0,
+            'windspeed': windspeed,
+          };
 
-          fetchedWeatherData.add(weather);
+          fetchedWeatherData.add(weatherData);
         }
 
-        return fetchedWeatherData; 
+        // Update the state with the fetched data
+        setState(() {
+          weatherData = fetchedWeatherData;
+        });
       } else {
         print('API request error: ${response.statusCode}');
-        return []; 
       }
     } catch (e) {
       print('Error: $e');
-      return []; 
     }
   }
 }
-
-class Weather {
-  final String isDay;
-  final double temperature;
-  final String windspeed;
-
-  Weather({
-    required this.isDay,
-    required this.temperature,
-    required this.windspeed,
-  });
-  String get getDate => isDay;
-  double get getTemperature => temperature;
-  String get getwindspeed => windspeed;
-}
-
-
-
